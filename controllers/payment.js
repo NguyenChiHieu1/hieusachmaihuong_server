@@ -2,6 +2,7 @@ const stripe = require("stripe")(process.env.STRIPE_KEY);
 const User = require("../models/user");
 const Product = require("../models/product");
 const Order = require("../models/order");
+const Bill = require("../models/bill");
 const asyncHandler = require('express-async-handler')
 
 function orderConvertData(cart, data, success, notes) {
@@ -134,7 +135,7 @@ const paymentProcess = asyncHandler(async (req, res) => {
         }),
         customer: customer.id,
         mode: "payment",
-        success_url: `${process.env.CLIENT}/order-detail?session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${process.env.CLIENT}/personal-info?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.CLIENT}/cart`,
         phone_number_collection: {
             enabled: true, // Bật thu thập số điện thoại
@@ -152,9 +153,9 @@ const checkOutSession = asyncHandler(async (request, response) => {
             sig,
             process.env.ENDPOINTSECRET
         );
-        console.log("payment success");
+        // console.log("payment success");
     } catch (err) {
-        console.log(err.message);
+        // console.log(err.message);
         response.status(400).send(`Webhook Error: ${err.message}`);
         return;
     }
@@ -163,22 +164,41 @@ const checkOutSession = asyncHandler(async (request, response) => {
     switch (event.type) {
         case "payment_intent.succeeded":
             const paymentIntent = event.data.object;
-            console.log("Payment succeeded");
+            // console.log("Payment succeeded");
             break;
 
         case "payment_intent.payment_failed":
             const failedIntent = event.data.object;
-            let notes = failedIntent.last_payment_error?.message;
+            let notes = failedIntent.last_payment_error?.message || "No error message";
+            // let notes = failedIntent.last_payment_error?.message;
             // console.log("Payment failed:", failedIntent.last_payment_error?.message);
 
             let info = await stripe.customers.retrieve(failedIntent.customer);
-            console.log("customer_failed", info);
+            // console.log("customer_failed", info);
             let infoFailedCart = JSON.parse(info?.metadata?.cart);
-            console.log("infoFailed", infoFailed);
+            console.log("infoFailed-error", infoFailedCart);
 
             try {
-                const objectFailed = orderConvertData(infoFailedCart, failedIntent, false, notes)
+                let success = false;
+                const objectFailed = orderConvertData(infoFailedCart, failedIntent, success, notes)
                 await Order.create(objectFailed);
+                console.log("order failed", objectFailed);
+                const existingBill = await Bill.findOne({ order: newOrder._id });
+                if (!existingBill) {
+                    const newBill = new Bill({
+                        order: newOrder._id,
+                        amountDue: newOrder.totalAmount,
+                        paymentMethod: newOrder.paymentMethod,
+                        paymentStatus: 'failed',
+                        paymentDate: new Date(),
+                        billAddress: newOrder.shippingAddress,
+                        notes: newOrder.notes
+                    });
+                    await newBill.save();
+                    console.log("newBill-server-error", newBill);
+                }
+                console.log("existingBill-error", existingBill);
+
             } catch (error) {
                 console.log("Failed to save failed order:", error.message);
             }
@@ -191,16 +211,36 @@ const checkOutSession = asyncHandler(async (request, response) => {
 
         case "checkout.session.completed":
             const data = event.data.object;
-            console.log("data", data);
+            // console.log("data", data);
             let customer = await stripe.customers.retrieve(data.customer);
-            console.log("customer", customer);
+            // console.log("customer", customer);
             let cartItems = JSON.parse(customer?.metadata?.cart);
 
             try {
                 // let note = "";
-                const orderItem = orderConvertData(cartItems, data, true, null);
+                let success = true;
+                const orderItem = orderConvertData(cartItems, data, success, null);
+                // console.log("orderItem-server", orderItem);
+
                 const newOrder = await Order.create(orderItem);
-                console.log("newOrder", orderItem);
+                //Bill
+                const existingBill = await Bill.findOne({ order: newOrder._id });
+                if (!existingBill) {
+                    const newBill = new Bill({
+                        order: newOrder._id,
+                        amountDue: newOrder.totalAmount,
+                        paymentMethod: newOrder.paymentMethod,
+                        paymentStatus: 'paid',
+                        paymentDate: new Date(),
+                        billAddress: newOrder.shippingAddress,
+                        notes: newOrder.notes,
+                        idOrder: newOrder.idOrder
+                    });
+                    await newBill.save();
+                    console.log("newBill-server-create", newBill);
+
+                }
+                // console.log("existingBill", newBill);
                 // Update product stock
                 for (const item of cartItems) {
                     const product = await Product.findOne({ _id: item._id });
@@ -208,18 +248,19 @@ const checkOutSession = asyncHandler(async (request, response) => {
                         let stock = product.stock - item.quantity;
                         stock = stock < 0 ? 0 : stock;
                         let status = "available";
+                        const soldCount = product.sold + item.quantity;
                         if (stock === 0) {
                             status = "out of stock";
                         }
-                        await Product.findByIdAndUpdate(item._id, {
+                        const cre = await Product.findByIdAndUpdate(item._id, {
                             stock: stock,
                             status: status,
-                            sold: item.quantity,
+                            sold: soldCount,
                         }, { new: true });
+                        console.log("Order created successfully:", cre);
                     }
                 }
 
-                console.log("Order created successfully:", newOrder._id);
             } catch (error) {
                 console.log("Failed to create order:", error.message);
                 return response.status(500).json("Server internal error");

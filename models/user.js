@@ -66,6 +66,11 @@ var userSchema = new mongoose.Schema({
     isBlock: {
         type: Boolean,
         default: false,
+    },
+    status: {
+        type: Boolean,
+        // enum: ['online', 'offline'],
+        default: false,
     }
 }, {
     timestamps: true

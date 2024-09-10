@@ -7,8 +7,8 @@ const cartSchema = new mongoose.Schema({
         quantity: Number,
         color: String,
         // size: String,
-        price: Number,
-        discount: { type: mongoose.Types.ObjectId, ref: 'Coupons' },
+        // price: Number,
+        // discount: { type: mongoose.Types.ObjectId, ref: 'Coupons' },
     }],
 }, { timestamps: true });
 

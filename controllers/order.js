@@ -15,12 +15,12 @@ const createOrder = asyncHandler(async (req, res) => {
     }
 
     const { _id } = req.info_user;
-
+    const { customer } = req.body
     try {
         // Tạo đơn hàng
         const orderCreate = await Order.create({
             ...req.body,
-            customer: _id
+            customer: customer ? customer : _id
         });
 
         // Cập nhật số lượng và trạng thái hàng hóa mua
@@ -39,7 +39,7 @@ const createOrder = asyncHandler(async (req, res) => {
                 await Product.findByIdAndUpdate(product._id, {
                     stock: stock,
                     status: status,
-                    sold: product.sold + item.quantity, // Cộng dồn số lượng bán
+                    sold: product.sold + item.quantity,
                 }, { new: true });
             }
         }
@@ -75,7 +75,7 @@ const getOrders = asyncHandler(async (req, res) => {
     // Tạo truy vấn
     let queryCommand = Order.find(formatedQueries).populate({
         path: 'customer',
-        select: 'name email'
+        select: 'email fullName'
     }).populate({
         path: 'items.productId',
         select: 'name price'
@@ -121,6 +121,32 @@ const getOrders = asyncHandler(async (req, res) => {
     }
 });
 
+//dung bên bill 
+const findOrder = asyncHandler(async (req, res) => {
+    try {
+        const ordersWithoutBill = await Order.find().select("-receivedDay -received -items").populate("customer", "fullName");
+        const ordersWithoutInvoice = [];
+
+        // Duyệt qua từng order để kiểm tra xem nó có bill hay không
+        for (let order of ordersWithoutBill) {
+            const existingBill = await Bill.findOne({ order: order._id }).exec();
+            if (!existingBill) {
+                ordersWithoutInvoice.push(order);
+            }
+        }
+        return res.status(200).json({
+            success: true,
+            data: ordersWithoutInvoice
+        });
+    }
+    catch (err) {
+        return res.status(500).json({
+            success: false,
+            msg: 'Cannot get orders',
+            error: err.message
+        })
+    }
+})
 // Xem chi tiết đơn hàng của admmin theo ID 
 const getOrdersByAdminId = asyncHandler(async (req, res) => {
     const { oid } = req.params
@@ -278,10 +304,10 @@ const userCancelOrder = asyncHandler(async (req, res) => {
 
 
 
-//update đơn hàng của quanli,admin pending -> processign
+//update đơn hàng của quanli,admin pending -> process
 const updateOrderAdmnin = asyncHandler(async (req, res) => {
     const { oid } = req.params;
-    const { orderStatus, shippingAddress } = req.body;
+    const { orderStatus, shippingAddress, totalAmount, notes, items, customer, deliveryDate } = req.body;
 
     try {
         // Find the order by ID
@@ -299,7 +325,9 @@ const updateOrderAdmnin = asyncHandler(async (req, res) => {
                 case "delivered":
                     order.deliveryDate = new Date();
                     bill.paymentStatus = "paid";
-                    await bill.save();
+                    if (order.paymentMethod === "COD") {
+                        bill.paymentDate = new Date();
+                    }
                     break;
                 case "canceller":
                     // bill.paymentStatus = "paid";
@@ -314,8 +342,23 @@ const updateOrderAdmnin = asyncHandler(async (req, res) => {
         // Update shipping address if provided
         if (shippingAddress) {
             order.shippingAddress = { ...order.shippingAddress, ...shippingAddress };
+            bill.billAddress = { ...bill.billAddress, ...shippingAddress };
+        }
+        if (totalAmount) {
+            order.totalAmount = totalAmount;
+            bill.amountDue = totalAmount;
+        }
+        if (deliveryDate) {
+            order.deliveryDate = deliveryDate;
+        }
+        if (notes) {
+            order.notes = notes;
+            bill.notes = notes;
         }
 
+        order.items = items ? items : order.items;
+        order.customer = customer ? customer : order.customer;
+        await bill.save();
         const updatedOrder = await order.save();
         // Phản hồi thành công
         res.status(200).json({
@@ -353,11 +396,14 @@ const updateOrderShipper = asyncHandler(async (req, res) => {
         // Cập nhật trạng thái đơn hàng 
         order.orderStatus = status;
         if (status === 'delivered') {
-            console.log("delivered")
+            // console.log("delivered")
             order.deliveryDate = new Date();
             await order.save();
             // Cap nhật trong hóa đơn
             bill.paymentStatus = "paid";
+            if (order.paymentMethod === "COD") {
+                bill.paymentDate = new Date();
+            }
             await bill.save();
             //
             // Gui thong bao toi khach
@@ -382,21 +428,39 @@ const updateOrderShipper = asyncHandler(async (req, res) => {
 // Xóa đơn hàng
 const deleteOrder = asyncHandler(async (req, res) => {
     const { oid } = req.params
-    const order = await Order.findByIdAndUpdate(oid);
-    if (!order) {
+    console.log(oid)
+    const order = await Order.findByIdAndDelete(oid);
+    const deleteBills = await Bill.deleteOne({ order: oid })
+    if (!order && !deleteBills) {
         return res.status(404).json({ message: 'Order delete failed!!!' });
+    }
+    if (deleteBills.deletedCount === 0) {
+        return res.status(404).json({ message: 'No associated bill found. Bill deletion failed!' });
     }
     res.status(200).json({
         success: true,
-        message: 'Order deleted successfully'
+        message: 'Order deleted successfully',
+        dataOrder: order,
+        dataBill: deleteBills
     });
 });
 
 const apiSave = asyncHandler(async (req, res) => {
     try {
         const data = await Order.find();
-        const savePromises = data.map((item) => item.save());
-        await Promise.all(savePromises);
+        // const savePromises = data.map((item) => item.save());
+        // Kiểm tra nếu idOrder đã tồn tại, không cần tạo lại
+        // const savePromises = data.map((item) => {
+        //     if (item.idOrder) return null;
+        //     const creAt = new Date(item.createdAt);
+        //     const day = String(creAt.getDate()).padStart(2, '0');
+        //     const month = String(creAt.getMonth() + 1).padStart(2, '0');
+        //     const year = String(creAt.getFullYear()).slice(2); // Lấy 2 số cuối của năm
+        //     const randomNumber = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+        //     item.idOrder = `DH${day}${month}${year}${randomNumber}`;
+        //     return item.save();
+        // }).filter(Boolean);
+        // await Promise.all(savePromises);
 
         res.status(200).json({
             success: true,
@@ -421,5 +485,6 @@ module.exports = {
     updateOrderAdmnin,
     updateOrderShipper,
     deleteOrder,
-    apiSave
+    apiSave,
+    findOrder
 };

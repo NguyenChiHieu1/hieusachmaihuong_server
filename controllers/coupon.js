@@ -1,6 +1,7 @@
 const Coupons = require("../models/coupons")
 const asyncHandler = require("express-async-handler")
 const { validationResult } = require("express-validator")
+const { deleteImages } = require('../utils/images')
 
 const createCoupon = asyncHandler(async (req, res) => {
     const err = validationResult(req);
@@ -10,8 +11,17 @@ const createCoupon = asyncHandler(async (req, res) => {
             errors: errors.array()
         });
     }
-    //
-    const coupon = await Coupons.create(req.body);
+
+    const image = req.file;
+    console.log(image)
+    console.log(req.file)
+    if (!image) {
+        res.status(400).json({
+            success: false,
+            message: "Please provide an image"
+        })
+    }
+    const coupon = await Coupons.create({ ...req.body, image: image.path });
     if (!coupon) throw new Error('Cannot create new coupon!!!')
     res.status(201).json({
         success: true,
@@ -24,7 +34,7 @@ const createCoupon = asyncHandler(async (req, res) => {
 const getAllCoupons = asyncHandler(async (req, res) => {
     const couponList = await coupons.find({ discountProduct: { $ne: [] }, status: true }).populate({
         path: 'discountProduct',
-        select: 'title slug'
+        select: 'name _id'
     });
     if (!couponList) throw new Error('Cannot find coupon!!!')
     res.status(200).json({
@@ -45,15 +55,18 @@ const getCoupons = asyncHandler(async (req, res) => {
     const formattedQueries = JSON.parse(queryString);
 
     // Thêm điều kiện lọc tên mã giảm giá nếu có
-    if (queries?.name) {
-        formattedQueries.name = { $regex: queries.name, $options: 'i' };
+    if (queries?.code) {
+        formattedQueries.code = { $regex: queries.code, $options: 'i' };
     }
 
+    // Thêm điều kiện bỏ qua các mã giảm giá có tên bắt đầu với 'default'
+    formattedQueries.name = {
+        ...formattedQueries.name,
+        $not: { $regex: /^default/, $options: 'i' }
+    };
+
     // Tạo query command với các populate nếu cần
-    let queryCommand = Coupons.find(formattedQueries).populate({
-        path: 'discountProduct',
-        select: 'name price',
-    });
+    let queryCommand = Coupons.find(formattedQueries);
 
     // Sắp xếp kết quả nếu có query sort
     if (req.query.sort) {
@@ -94,7 +107,6 @@ const getCoupons = asyncHandler(async (req, res) => {
         });
     }
 });
-
 const getAllDiscounts = asyncHandler(async (req, res) => {
     const couponList = await Coupons.find({ discountProduct: { $size: 0 }, status: true }).sort({ discount: 1 })
     if (!couponList) throw new Error('Cannot find discounts!!!')
@@ -107,7 +119,7 @@ const getAllDiscounts = asyncHandler(async (req, res) => {
 const getCouponById = asyncHandler(async (req, res) => {
     const { _cid } = req.params
     if (!_cid) throw new Error('Missing input params')
-    const coupFindId = await coupons.findById(_cid).populate('discountProduct');
+    const coupFindId = await Coupons.findById(_cid).populate('discountProduct');
     if (!coupFindId) throw new Error('Coupon not found')
     res.status(200).json({
         success: true,
@@ -119,8 +131,9 @@ const getCouponById = asyncHandler(async (req, res) => {
 // Update a coupon
 const updateCoupon = asyncHandler(async (req, res) => {
     const { _cid } = req.params
+    const image = req.file?.path;
     if (!_cid || Object.keys(req.body).length === 0) throw new Error('Missing input')
-    const couponNew = await Coupons.findByIdAndUpdate(_cid, req.body, { new: true }).populate('discountProduct');
+    const couponNew = await Coupons.findByIdAndUpdate(_cid, { ...req.body, image }, { new: true }).populate('discountProduct');
     if (!couponNew) throw new Error('Coupon update failed!!!')
     res.status(200).json({
         success: true,
@@ -134,8 +147,19 @@ const deleteCoupon = asyncHandler(async (req, res) => {
     const { _cid } = req.params
     if (!_cid) throw new Error('Missing input params')
 
-    const couponDelete = await Coupons.findByIdAndDelete(_cid);
-    if (!couponDelete) throw new Error('Coupon delete failed!!!')
+
+    const couponDelete = await Coupons.findById(_cid);
+    if (!couponDelete) throw new Error('Coupon no found!!!')
+    let arrImage = [];
+    if (couponDelete.image) {
+        arrImage.push(couponDelete.image);
+        let deleteImageOld = deleteImages(arrImage);
+        if (deleteImageOld) {
+            console.log('Delete image success!!!')
+            await Coupons.findByIdAndDelete(_cid);
+        }
+        else console.log("Delete image false!")
+    }
     res.status(200).json({
         success: true,
         msg: 'Coupon deleted successfully'

@@ -37,8 +37,14 @@ var billSchema = new mongoose.Schema({
     notes: {
         type: String,
         default: ""
+    },
+    isRefund: {
+        type: Boolean,
+        default: false
+    },
+    idOrder: {
+        type: String
     }
 }, { timestamps: true });
 
-//Export the model
 module.exports = mongoose.model('Bill', billSchema);

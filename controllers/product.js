@@ -59,7 +59,7 @@ const createProduct = asyncHandler(async (req, res) => {
 });
 
 const getAllProduct = asyncHandler(async (req, res) => {
-    const newProduct = await product.find({ stock: { $gt: 20 } }).populate({
+    const newProduct = await product.find().populate({
         path: 'category',
         select: 'name description parentCategory'
     }
@@ -84,7 +84,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
     const excludeFields = ['limit', 'sort', 'page', 'fields'];
     excludeFields.forEach(field => delete queries[field]);
-    console.log("excludeFields", excludeFields);
+    // console.log("excludeFields", excludeFields);
 
     let queryString = JSON.stringify(queries);
     queryString = queryString.replace(/\b(gte|gt|lt|lte)\b/g, matchedEl => `$${matchedEl}`);
@@ -93,7 +93,7 @@ const getProducts = asyncHandler(async (req, res) => {
     // Thay đổi điều kiện cho trường 'name'
     if (queries?.name) formatedQueries.name = { $regex: queries.name, $options: 'i' };
 
-    console.log("formatedQueries", formatedQueries);
+    // console.log("formatedQueries", formatedQueries);
 
     // Tạo truy vấn cơ bản cho sản phẩm
     let queryCommand = product.find(formatedQueries)

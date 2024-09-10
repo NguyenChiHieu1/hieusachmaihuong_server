@@ -10,6 +10,7 @@ const cartRoutes = require('./cartRoutes')
 const paymentRoutes = require('./paymentRoutes')
 const orderRoutes = require('./orderRoutes')
 const billRoutes = require('./billRoutes')
+const statisticalRoutes = require('./statisticalRoutes')
 
 const routing = (app) => {
     app.use('/api/user', userRoutes);
@@ -23,6 +24,7 @@ const routing = (app) => {
     app.use('/api/payment', paymentRoutes);
     app.use('/api/order', orderRoutes);
     app.use('/api/bill', billRoutes);
+    app.use('/api/statistical', statisticalRoutes);
 
     app.use(notFound);
     app.use(errorHandler);

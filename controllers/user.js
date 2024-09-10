@@ -49,7 +49,7 @@ const login = asyncHandler(async (req, res) => {
     if (await comparePassword(password, userCheck.password)) {
         const accessToken = generateAccessToken(userCheck._id, userCheck.role)
         const newRefreshToken = generateRefreshToken(userCheck._id)
-        await user.findByIdAndUpdate(userCheck._id, { refreshToken: newRefreshToken }, { new: true })
+        await user.findByIdAndUpdate(userCheck._id, { refreshToken: newRefreshToken, status: true }, { new: true })
         res.cookie('refreshToken', newRefreshToken, {
             httpOnly: true,
             maxAge: 7 * 24 * 60 * 60 * 1000
@@ -79,7 +79,7 @@ const getInfoUserLogin = asyncHandler(async (req, res) => {
         //         select: 'discount'
         //     })
         // })
-        .select('name fullName email avatar phoneNumber dateOfBirth gender address isBlock')
+        .select('name fullName email avatar phoneNumber dateOfBirth gender address isBlock wishlist')
     if (!userNew) throw new Error('Get current false!!!')
     return res.status(200).json({
         success: true,
@@ -207,7 +207,8 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const getUser = asyncHandler(async (req, res) => {
-    const response = await user.find().select('-refreshToken -password -role -passwordResetToken')
+    const { role } = req.params;
+    const response = await user.find({ role: role }).select('-refreshToken -password -role -passwordResetToken')
     if (!response) throw new Error('Error found user')
     return res.status(200).json({
         success: true,
@@ -256,12 +257,12 @@ const updateUser = asyncHandler(async (req, res) => {
     }
 
     const response = await user.findByIdAndUpdate(_id, updateData,
-        { new: true }).select('-refreshToken -role -passwordResetToken -isBlock -orderHistory -wishlist ')
+        { new: true }).select('-refreshToken -role -passwordResetToken -isBlock -orderHistory')
     if (!response) throw new Error('Error update info account')
     return res.status(200).json({
         success: true,
         msg: 'Update successfully',
-        // data: response
+        data: response
     })
     // } catch (error) {
     //     return res.status(400).json({
@@ -273,11 +274,24 @@ const updateUser = asyncHandler(async (req, res) => {
 })
 
 const deleteUser = asyncHandler(async (req, res) => {
-    const { _id } = req.query
-    if (!_id) throw new Error('Missing inputs')
-    const response = await user.findByIdAndDelete(_id)
-    if (!response) throw new Error('Error delete account')
+    const { _id } = req.body
+    console.log(req.body)
 
+    if (!_id) throw new Error('Missing inputs')
+    const response = await user.findById(_id)
+    if (!response) throw new Error('Not found account')
+    let arrImage = [];
+    if (response.avatar) {
+        if (response.avatar !== "https://res.cloudinary.com/dr3f3acgx/image/upload/v1724351609/duxt59vn98gdxqcllctt.jpg") {
+            arrImage.push(response.avatar);
+            let deleteImageOld = deleteImages(arrImage);
+            if (deleteImageOld) {
+                console.log("delete image success!")
+                await user.findById(_id)
+            }
+            else console.log("delete image false!")
+        }
+    }
     return res.status(200).json({
         success: true,
         msg: `Account user with email ${response.email} delete`
@@ -286,7 +300,7 @@ const deleteUser = asyncHandler(async (req, res) => {
 
 const logout = asyncHandler(async (req, res) => {
     const { _id } = req.info_user
-    const response = await user.findByIdAndUpdate(_id, { refreshToken: '' }, { new: true })
+    const response = await user.findByIdAndUpdate(_id, { refreshToken: '', status: false }, { new: true })
     if (!response) throw new Error('Error logout')
     res.cookie('refreshToken', '', {
         httpOnly: true,
@@ -315,6 +329,177 @@ const wishlist = asyncHandler(async (req, res) => {
     })
 })
 
+const getAccounts = asyncHandler(async (req, res) => {
+    const queries = { ...req.query };
+
+    // Fields to exclude from queries
+    const excludeFields = ['limit', 'sort', 'page', 'fields'];
+    excludeFields.forEach(field => delete queries[field]);
+
+    let queryString = JSON.stringify(queries);
+    queryString = queryString.replace(/\b(gte|gt|lt|lte)\b/g, matchedEl => `$${matchedEl}`);
+    const formattedQueries = JSON.parse(queryString);
+
+    // Handle 'name' search condition
+    if (queries?.name) {
+        formattedQueries.name = { $regex: queries.name, $options: 'i' };
+    }
+
+    // Create base query for users
+    let queryCommand = user.find(formattedQueries)
+        .select("-password -refreshToken -passwordChangeAt -passwordResetToken -passwordResetExpires");
+
+    // Handle sorting
+    if (req.query.sort) {
+        const sortBy = req.query.sort.split(',').join(' ');
+        queryCommand = queryCommand.sort(sortBy);
+    } else {
+        queryCommand = queryCommand.sort({ createdAt: -1 });
+    }
+
+    // Handle field selection
+    if (req.query.fields) {
+        const fields = req.query.fields.split(',').join(' ');
+        queryCommand = queryCommand.select(fields);
+    }
+
+    // Handle pagination
+    const page = +req.query.page || 1;
+    const limit = +req.query.limit || process.env.LIMIT_ACCOUNTS;
+    const skip = (page - 1) * limit;
+    queryCommand.skip(skip).limit(limit);
+
+    try {
+        const accountsList = await queryCommand.exec();
+        const count = await user.countDocuments(formattedQueries);
+
+        return res.status(200).json({
+            success: true,
+            counts: count,
+            currentPage: page,
+            totalPage: Math.ceil(count / limit),
+            data: accountsList,
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({
+            success: false,
+            msg: 'Cannot get user accounts',
+            error: err.message
+        });
+    }
+});
+
+const apiSave = asyncHandler(async (req, res) => {
+    try {
+        // Lấy tất cả dữ liệu từ collection 'user'
+        const data = await user.find();
+
+        const savePromises = data.map(async (item) => {
+            // item.status = undefined;
+            // if (typeof item.status === "string") {
+            //     if (item.status.toLowerCase() === "online") {
+            //         item.status = true;
+            //     } else if (item.status.toLowerCase() === "offline") {
+            //         item.status = false;
+            //     } else {
+            //         item.status = false;
+            //     }
+            // }
+            await item.save();
+        });
+        await Promise.all(savePromises);
+
+        res.status(200).json({
+            success: true,
+            msg: 'Data saved successfully',
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            msg: error.message
+        })
+    }
+})
+
+const updateAccount = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    let { password } = req.body
+    let image = req.file;
+
+    // try {
+    const userUpdate = await user.findOne({ _id: id });
+    // console.log(userUpdate)
+    if (!userUpdate) throw new Error('User not found')
+    // 
+    let updateData = { ...req.body };
+    if (password !== "" || password !== undefined) {
+        // console.log(password)
+        // Băm mật khẩu mới
+        updateData.password = await hashedPassword(password);
+    }
+    //
+    let arrImage = [];
+    if (image) {
+        if (userUpdate.avatar !== "https://res.cloudinary.com/dr3f3acgx/image/upload/v1724351609/duxt59vn98gdxqcllctt.jpg") {
+            arrImage.push(userUpdate.avatar);
+            let deleteImageOld = deleteImages(arrImage);
+            if (deleteImageOld) console.log("delete image success!")
+            else console.log("delete image false!")
+        }
+        updateData.avatar = image.path;
+    }
+
+    const response = await user.findByIdAndUpdate(id, updateData, { new: true });
+    if (!response) throw new Error('Error update info account')
+    return res.status(200).json({
+        success: true,
+        msg: 'Update successfully',
+        data: response
+    })
+    // } catch (error) {
+    //     return res.status(400).json({
+    //         success: false,
+    //         msg: 'Update failed!!!',
+    //         error: error.messange
+    //     })
+    // }
+})
+
+const createAccount = asyncHandler(async (req, res) => {
+    const err = validationResult(req);
+    if (!err.isEmpty()) {
+        return res.status(400).json({
+            success: false,
+            errors: errors.array()
+        });
+    }
+    try {
+        let { name, email, password } = req.body
+        let image = req.file;
+
+        const findEmail = await user.findOne({ email: email })
+        if (findEmail) throw new Error('Email already exists!!!')
+        const nameAcc = await user.findOne({ name: name })
+        if (nameAcc) throw new Error('Nick name already exists!!!')
+        if (image) {
+            await user.create({ ...req.body, password: password, avatar: image.path })
+        } else {
+            await user.create({ ...req.body, password: password })
+        }
+        return res.status(200).json({
+            success: true,
+            msg: "AccountUser created successfully!!!"
+        })
+    } catch (err) {
+        return res.status(400).json({
+            success: false,
+            msg: 'Create account failed!!!',
+        })
+    }
+});
+
 module.exports = {
     register,
     login,
@@ -326,5 +511,9 @@ module.exports = {
     updateUser,
     deleteUser,
     logout,
-    wishlist
+    wishlist,
+    getAccounts,
+    apiSave,
+    updateAccount,
+    createAccount
 }

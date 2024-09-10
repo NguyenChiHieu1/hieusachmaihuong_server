@@ -14,7 +14,11 @@ router.post('/logout', [verifyAccessToken], user.logout)
 router.post('/wishlist', [verifyAccessToken], user.wishlist)
 router.get('/get-info-login', [verifyAccessToken], user.getInfoUserLogin)
 router.get('/refresh-token', [verifyAccessToken], user.refreshAccessToken)
-router.get('/', [verifyAccessToken, isAdmin], user.getUser)
+router.get('/account', [verifyAccessToken, isAdmin], user.getAccounts)
+router.get('/:role', [verifyAccessToken, isAdmin], user.getUser)
+router.post('/api-save', [verifyAccessToken, isAdmin], user.apiSave)
+router.put('/account/:id', [verifyAccessToken, isAdmin], uploadCloud.single('image'), user.updateAccount)
+router.post('/account', [verifyAccessToken, isAdmin], uploadCloud.single('image'), user.createAccount)
 router.delete('/delete', [verifyAccessToken, isAdmin], user.deleteUser)
 
 

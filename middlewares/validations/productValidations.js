@@ -3,12 +3,12 @@ const { body } = require('express-validator');
 module.exports.productValidations = [
     body('name')
         .not().isEmpty().withMessage('Name is required')
-        .trim().isLength({ min: 3, max: 100 }).withMessage('Name should be between 3 and 100 characters'),
+        .trim().isLength({ min: 3, max: 1000 }).withMessage('Name should be between 3 and 1000 characters'),
 
     body('description')
         .not().isEmpty().withMessage('Description is required')
         .trim()
-        .isLength({ max: 10000 }).withMessage('Description should not exceed 500 characters'),
+        .isLength({ max: 100000 }).withMessage('Description should not exceed 500 characters'),
 
     body('price').isInt({ min: 0 }).withMessage('Price must be a positive number'),
 

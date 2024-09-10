@@ -4,16 +4,16 @@ const asyncHandler = require('express-async-handler');
 const { validationResult } = require('express-validator')
 
 const addItemToCart = asyncHandler(async (req, res) => {
-    const err = validationResult(req);
-    if (!err.isEmpty()) {
-        return res.status(400).json({
-            success: false,
-            errors: errors.array()
-        });
-    }
+    // const err = validationResult(req);
+    // if (!err.isEmpty()) {
+    //     return res.status(400).json({
+    //         success: false,
+    //         errors: errors.array()
+    //     });
+    // }
     const { _id } = req.info_user;
 
-    const { product, quantity, color } = req.body;
+    const { items } = req.body;
 
     let cart = await Cart.findOne({ userId: _id });
 
@@ -26,23 +26,22 @@ const addItemToCart = asyncHandler(async (req, res) => {
         // if (!createCart) throw new Error('Create cart failed')
         // await User.findByIdAndUpdate(_id, { cart: createCart._id }, { new: true })
         // cart = createCart;
-    } else {
-        const itemIndex = cart.items.findIndex((item) =>
-            item.product.toString() === product.toString() &&
-            item.color === color
-        );
-
-        if (itemIndex > -1) {
-            cart.items[itemIndex].quantity += quantity;
-        } else {
-            cart.items.push({
-                product,
-                quantity,
-                color,
-            });
-        }
-        await cart.save();
     }
+    // const itemIndex = cart.items.findIndex((item) =>
+    //     item.product.toString() === product.toString() &&
+    //     item.color === color
+    // );
+    // if (itemIndex > -1) {
+    //     cart.items[itemIndex].quantity += quantity;
+    // } else {
+    //     cart.items.push({
+    //         product,
+    //         quantity,
+    //         color,
+    //     });
+    // }
+    cart.items = items;
+    await cart.save();
     res.status(200).json({ success: true, data: cart });
 });
 

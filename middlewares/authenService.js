@@ -31,6 +31,7 @@ const isAdmin = asyncHandler(async (req, res, next) => {
     next()
 })
 
+
 const isEmployee = asyncHandler(async (req, res, next) => {
     const { role } = req.info_user;
     if (role !== 'employee' && role !== 'admin') {
@@ -42,4 +43,15 @@ const isEmployee = asyncHandler(async (req, res, next) => {
     next();
 });
 
-module.exports = { verifyAccessToken, isAdmin, isEmployee }
+const isShipper = asyncHandler(async (req, res, next) => {
+    const { role } = req.info_user;
+    if (role !== 'shipper' && role !== 'admin') {
+        return res.status(403).json({
+            success: false,
+            message: 'Require employee role!!!'
+        });
+    }
+    next();
+});
+
+module.exports = { verifyAccessToken, isAdmin, isEmployee, isShipper }
