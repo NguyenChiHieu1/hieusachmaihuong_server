@@ -13,15 +13,15 @@ module.exports.orderValidations = [
         .not().isEmpty().withMessage('Product name is required')
         .trim().isLength({ min: 3, max: 100 }).withMessage('Product name should be between 3 and 100 characters'),
 
-    body('items.*.quantity')
-        .isInt({ min: 1 }).withMessage('Quantity should be a positive integer'),
+    // body('items.*.quantity')
+    //     .isInt({ min: 1 }).withMessage('Quantity should be a positive integer'),
 
     body('items.*.price')
         .isFloat({ min: 0 }).withMessage('Price should be a positive number'),
 
-    body('items.*.discount')
-        .optional()
-        .isFloat({ min: 0 }).withMessage('Discount should be a positive number'),
+    // body('items.*.discount')
+    //     .optional()
+    //     .isFloat({ min: 0 }).withMessage('Discount should be a positive number'),
 
     body('items.*.color')
         .not().isEmpty().withMessage('Product color is required')
@@ -44,7 +44,7 @@ module.exports.orderValidations = [
 
     body('shippingAddress.recipientNumber')
         .not().isEmpty().withMessage('Recipient phone number is required')
-        .isLength({ min: 10, max: 15 }).withMessage('Phone number should be between 10 and 15 digits'),
+        .isLength({ min: 10, max: 11 }).withMessage('Phone number should be between 10 and 15 digits'),
 
     body('shippingAddress.city')
         .not().isEmpty().withMessage('City is required')

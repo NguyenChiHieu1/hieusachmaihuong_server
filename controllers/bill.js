@@ -5,7 +5,7 @@ const asyncHandler = require('express-async-handler');
 
 // Tạo hóa đơn mới sau khi đơn hàng được tạo
 const createBill = asyncHandler(async (req, res) => {
-    const { order, amountDue, paymentMethod, billAddress, notes } = req.body;
+    const { order, amountDue, paymentMethod, billAddress, notes, paymentStatus } = req.body;
 
     try {
         // Kiểm tra xem đơn hàng có tồn tại hay không
@@ -22,10 +22,15 @@ const createBill = asyncHandler(async (req, res) => {
             amountDue,
             paymentMethod,
             billAddress,
+            paymentStatus,
             notes,
             idOrder: orderFind.idOrder
         });
-
+        if (paymentMethod === "bank_transfer") {
+            const billUpdate = await Bill.updateOne({ _id: billCreate._id }, {
+                paymentDate: new Date()
+            })
+        }
         res.status(201).json({
             success: true,
             data: billCreate

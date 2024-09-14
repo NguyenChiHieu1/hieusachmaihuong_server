@@ -44,6 +44,28 @@ const createOrder = asyncHandler(async (req, res) => {
             }
         }
 
+        const existingBill = await Bill.findOne({ order: orderCreate._id });
+        if (!existingBill) {
+            const newBillData = {
+                order: orderCreate._id,
+                amountDue: orderCreate.totalAmount,
+                paymentMethod: orderCreate.paymentMethod,
+                paymentStatus: 'pending',
+                billAddress: orderCreate.shippingAddress,
+                notes: orderCreate.notes,
+                idOrder: orderCreate.idOrder
+            };
+
+            // Nếu paymentMethod là "bank_transfer", thêm paymentDate là ngày hiện tại
+            if (orderCreate.paymentMethod === 'bank_transfer') {
+                newBillData.paymentDate = new Date();
+                newBillData.paymentStatus = 'paid';
+            }
+
+            const newBill = new Bill(newBillData);
+            await newBill.save();
+        }
+
         res.status(201).json({
             success: true,
             data: orderCreate
@@ -361,9 +383,21 @@ const updateOrderAdmnin = asyncHandler(async (req, res) => {
         await bill.save();
         const updatedOrder = await order.save();
         // Phản hồi thành công
+        // if (createdAt) {
+        //     const dateBuy = new Date(createdAt)
+        //     console.log(typeof dateBuy);
+
+        //     const i = await Order.updateOne(
+        //         { _id: oid },
+        //         { $set: { createdAt: new Date(dateBuy) } },
+        //         { timestamps: false }
+        //     );
+        //     console.log(i)
+        // }
         res.status(200).json({
             success: true,
-            msg: "Update successfull!!"
+            msg: "Update successfull!!",
+            updatedOrder: updatedOrder
         });
     } catch (error) {
         // Xử lý lỗi nếu có

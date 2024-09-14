@@ -63,7 +63,7 @@ const login = asyncHandler(async (req, res) => {
     return res.status(400).json({
         success: false,
         errors: [{
-            msg: "Incorrect password!!!",
+            msg: "Mật khẩu không chính xác!!!",
         }]
     })
 });

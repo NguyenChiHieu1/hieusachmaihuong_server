@@ -72,6 +72,8 @@ const getCoupons = asyncHandler(async (req, res) => {
     if (req.query.sort) {
         const sortBy = req.query.sort.split(',').join(' ');
         queryCommand = queryCommand.sort(sortBy);
+    } else {
+        queryCommand = queryCommand.sort({ createdAt: -1 });
     }
 
     // Giới hạn các trường kết quả nếu có query fields

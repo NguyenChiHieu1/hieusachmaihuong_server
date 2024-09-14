@@ -145,10 +145,10 @@ const getProducts = asyncHandler(async (req, res) => {
 
 const updateProduct = asyncHandler(async (req, res) => {
     // const { name, color, sizes, price, quantity, sold, discount, category, description } = req.body;
-    const { name, color, sizes, price, quantity, sold, discount, category, description, cloudinaryImages } = req.body;
+    const { name, color, price, stock, sold, coupons, category, description, cloudinaryImages, brand } = req.body;
     const pid = req.params.pid;
     const files_image = req.files;
-
+    console.log(req.body)
     // Lấy sản phẩm hiện tại
     const productNew = await product.findById(pid);
     if (!productNew) throw new Error("Product not found!");
@@ -205,11 +205,12 @@ const updateProduct = asyncHandler(async (req, res) => {
     // Cập nhật thông tin sản phẩm
     productNew.name = name || productNew.name;
     productNew.color = color || productNew.color;
-    productNew.sizes = sizes || productNew.sizes;
+    // productNew.sizes = sizes || productNew.sizes;
     productNew.price = price || productNew.price;
-    productNew.quantity = quantity || productNew.quantity;
+    productNew.stock = stock || productNew.stock;
     productNew.sold = sold || productNew.sold;
-    productNew.discount = discount || productNew.discount;
+    productNew.brand = brand || productNew.brand;
+    productNew.coupons = coupons || productNew.coupons;
     productNew.category = category || productNew.category;
     productNew.description = description || productNew.description;
 
