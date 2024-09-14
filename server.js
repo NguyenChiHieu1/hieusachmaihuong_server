@@ -10,7 +10,9 @@ const app = express()
 
 
 app.use(cookieParser());
-app.use(cors());
+app.use(cors({
+    origin: 'https://doancuoikhoa.onrender.com'
+}));
 const port = process.env.PORT || 5000
 connect()
 
