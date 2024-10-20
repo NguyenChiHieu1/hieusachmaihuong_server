@@ -1,18 +1,18 @@
 const { body } = require("express-validator");
 module.exports.registerValidations = [
-    body('name').not().isEmpty().trim().escape().withMessage('name is required'),
-    body('fullName').not().isEmpty().trim().escape().withMessage('fullname is required'),
-    body('email').isEmail().normalizeEmail().trim().escape().withMessage('email is required'),
-    body('password').isLength({ min: 5 }).withMessage('password should be 5 characters long')
+    body('name').not().isEmpty().trim().escape().withMessage('Vui lòng nhập tên tai khoản'),
+    body('fullName').not().isEmpty().trim().escape().withMessage('Vui lòng nhập họ và tên'),
+    body('email').isEmail().normalizeEmail().trim().escape().withMessage('Vui lòng nhập email'),
+    body('password').isLength({ min: 5 }).withMessage('Mật khẩu ít nhất 5 ký tự')
 ]
 
 module.exports.loginValidations = [
     body('email')
         .isEmail().normalizeEmail().trim().escape()
         .matches(/^[a-zA-Z0-9._%+-]+@gmail\.com$/)
-        .withMessage('Email must be a valid Gmail address'),
+        .withMessage('Vui lòng nhập đúng định dạng tài khoản email'),
     body('password')
         .not().isEmpty()
         .isLength({ min: 5 })
-        .withMessage('Password is required and must be at least 5 characters long')
+        .withMessage('Mật khẩu ít nhất 5 ký tự')
 ]
